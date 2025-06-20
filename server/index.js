@@ -9,9 +9,17 @@ app.use(express.json());
 
 app.post("/replace-participant/subscribe", async (req, res) => {
   try {
-    const { event, inputFields } = req.body;
+    const payload = req.body?.payload || {};
+    const event = payload?.event || {};
+    const inputFields = payload?.inputFields || {};
+
     const { itemId, boardId, columnId } = event;
     const peopleId = inputFields.peopleId;
+
+    if (!itemId || !boardId || !columnId || !peopleId) {
+      console.warn("⚠️ Missing required input data:", { itemId, boardId, columnId, peopleId });
+      return res.status(200).send(); // Prevent retries
+    }
 
     // 1. Get last editor of the edited column
     const query = `
@@ -37,7 +45,7 @@ app.post("/replace-participant/subscribe", async (req, res) => {
       }
     );
 
-    const userId = response.data.data.items?.[0]?.column_values?.[0]?.updated_by?.id;
+    const userId = response.data?.data?.items?.[0]?.column_values?.[0]?.updated_by?.id;
 
     if (!userId) {
       console.warn("⚠️ Could not find editor for that column.");

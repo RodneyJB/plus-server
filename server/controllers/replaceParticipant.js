@@ -1,32 +1,38 @@
 const axios = require('axios');
 
 const handleReplaceParticipant = async (req, res) => {
-  console.log("📥 Incoming request to /replace-participant/subscribe");
-  const payload = req.body?.payload || {};
-  const event = payload?.event || {};
-  const inputFields = payload?.inputFields || {};
+  try {
+    console.log("📥 Request received at /replace-participant/subscribe");
+    console.log("📦 Raw Request Body:", JSON.stringify(req.body, null, 2));
 
-  const { itemId, boardId, columnId } = event;
-  const { peopleId } = inputFields;
+    const payload = req.body?.payload || {};
+    const event = payload?.event || req.body?.event || {};
 
-  if (!itemId || !boardId || !columnId || !peopleId) {
-    console.warn("⚠️ Missing required input data:", { itemId, boardId, columnId, peopleId });
-    return res.status(200).send();
-  }
+    const columnId = payload?.inputFields?.columnId || payload?.inboundFieldValues?.columnId;
+    const peopleId = payload?.inputFields?.peopleId;
+    const itemId = event?.itemId;
+    const boardId = event?.boardId;
 
-  const query = `
-    query {
-      items(ids: ${itemId}) {
-        column_values(ids: "${columnId}") {
-          updated_by {
-            id
+    console.log("🟢 Parsed Values:", { itemId, boardId, columnId, peopleId });
+
+    if (!itemId || !boardId || !columnId || !peopleId) {
+      console.warn("⚠️ Missing data:", { itemId, boardId, columnId, peopleId });
+      return res.status(200).send(); // Avoid retry
+    }
+
+    // 1. Get last editor
+    const query = `
+      query {
+        items(ids: ${itemId}) {
+          column_values(ids: "${columnId}") {
+            updated_by {
+              id
+            }
           }
         }
       }
-    }
-  `;
+    `;
 
-  try {
     const response = await axios.post(
       'https://api.monday.com/v2',
       { query },
@@ -41,10 +47,11 @@ const handleReplaceParticipant = async (req, res) => {
     const userId = response.data?.data?.items?.[0]?.column_values?.[0]?.updated_by?.id;
 
     if (!userId) {
-      console.warn("⚠️ No editor found for the column.");
+      console.warn("⚠️ No user ID found for edited column.");
       return res.status(200).send();
     }
 
+    // 2. Assign editor to People column
     const mutation = `
       mutation {
         change_column_value(
@@ -70,18 +77,17 @@ const handleReplaceParticipant = async (req, res) => {
     );
 
     if (mutationResponse.data.errors) {
-      console.error("❌ Mutation failed:", mutationResponse.data.errors);
-      return res.status(500).json({ error: "Mutation error" });
+      console.error("❌ Mutation error:", mutationResponse.data.errors);
+      return res.status(500).json({ error: "Failed to update column" });
     }
 
-    console.log(`✅ User ${userId} set on item ${itemId}`);
+    console.log(`✅ Assigned user ${userId} to item ${itemId}`);
     res.status(200).json({ success: true });
 
   } catch (err) {
-    console.error("❌ Request error:", err.response?.data || err.message);
+    console.error("❌ Server Error:", err?.response?.data || err.message);
     res.status(500).json({ error: "Server error" });
   }
 };
 
-// 👇👇👇 This is what you were missing
 module.exports = { handleReplaceParticipant };

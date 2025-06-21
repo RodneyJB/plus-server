@@ -9,8 +9,10 @@ app.use(express.json());
 
 app.post("/replace-participant/subscribe", async (req, res) => {
   try {
-    const event = req.body.event || {};
-    const inputFields = req.body.inputFields || {};
+    const payload = req.body?.payload || {};
+    const event = payload?.event || {};
+    const inputFields = payload?.inputFields || {};
+
 
     const { itemId, boardId, columnId } = event;
     const { peopleId } = inputFields;

@@ -9,16 +9,16 @@ app.use(express.json());
 
 app.post("/replace-participant/subscribe", async (req, res) => {
   try {
-    const payload = req.body?.payload || {};
-    const event = payload?.event || {};
-    const inputFields = payload?.inputFields || {};
+    const inputFields = req.body.inputFields || {};
 
-    const { itemId, boardId, columnId } = event;
+    const itemId = inputFields.itemId;
+    const boardId = inputFields.boardId;
+    const columnId = inputFields.columnId;
     const peopleId = inputFields.peopleId;
 
     if (!itemId || !boardId || !columnId || !peopleId) {
       console.warn("⚠️ Missing required input data:", { itemId, boardId, columnId, peopleId });
-      return res.status(200).send(); // Prevent retries
+      return res.status(200).send(); // avoid retries
     }
 
     // 1. Get last editor of the edited column
@@ -48,8 +48,8 @@ app.post("/replace-participant/subscribe", async (req, res) => {
     const userId = response.data?.data?.items?.[0]?.column_values?.[0]?.updated_by?.id;
 
     if (!userId) {
-      console.warn("⚠️ Could not find editor for that column.");
-      return res.status(200).send(); // Exit gracefully, no retry
+      console.warn("⚠️ No editor found for the column.");
+      return res.status(200).send();
     }
 
     // 2. Assign last editor to the People column
@@ -78,12 +78,11 @@ app.post("/replace-participant/subscribe", async (req, res) => {
     );
 
     if (updateResponse.data.errors) {
-      console.error("❌ GraphQL mutation error:", updateResponse.data.errors);
+      console.error("❌ Mutation error:", updateResponse.data.errors);
       return res.status(500).json({ error: "Mutation failed" });
     }
 
-    console.log(`✅ Set user ${userId} as assignee for item ${itemId}`);
-    res.set('X-Processed-By', 'plus-server');
+    console.log(`✅ Assigned user ${userId} to item ${itemId}`);
     res.status(200).json({ success: true });
 
   } catch (err) {

@@ -1,6 +1,6 @@
-const event = req.body?.event || {};
-const inputFields = req.body?.inputFields || {};
-
+const express = require('express');
+const axios = require('axios');
+const dotenv = require('dotenv');
 
 dotenv.config();
 
@@ -9,19 +9,18 @@ app.use(express.json());
 
 app.post("/replace-participant/subscribe", async (req, res) => {
   try {
-    const inputFields = req.body.inputFields || {};
+    const event = req.body?.event || {};
+    const inputFields = req.body?.inputFields || {};
 
-    const itemId = inputFields.itemId;
-    const boardId = inputFields.boardId;
-    const columnId = inputFields.columnId;
-    const peopleId = inputFields.peopleId;
+    const { itemId, boardId, columnId } = event;
+    const { peopleId } = inputFields;
 
     if (!itemId || !boardId || !columnId || !peopleId) {
       console.warn("⚠️ Missing required input data:", { itemId, boardId, columnId, peopleId });
-      return res.status(200).send(); // avoid retries
+      return res.status(200).send(); // Avoid retries
     }
 
-    // 1. Get last editor of the edited column
+    // Step 1: Get last editor from column
     const query = `
       query {
         items(ids: ${itemId}) {
@@ -48,11 +47,11 @@ app.post("/replace-participant/subscribe", async (req, res) => {
     const userId = response.data?.data?.items?.[0]?.column_values?.[0]?.updated_by?.id;
 
     if (!userId) {
-      console.warn("⚠️ No editor found for the column.");
-      return res.status(200).send();
+      console.warn("⚠️ No user ID found for edited column.");
+      return res.status(200).send(); // No retry
     }
 
-    // 2. Assign last editor to the People column
+    // Step 2: Assign last editor to People column
     const mutation = `
       mutation {
         change_column_value(
@@ -66,7 +65,7 @@ app.post("/replace-participant/subscribe", async (req, res) => {
       }
     `;
 
-    const updateResponse = await axios.post(
+    const mutationResponse = await axios.post(
       'https://api.monday.com/v2',
       { query: mutation },
       {
@@ -77,21 +76,20 @@ app.post("/replace-participant/subscribe", async (req, res) => {
       }
     );
 
-    if (updateResponse.data.errors) {
-      console.error("❌ Mutation error:", updateResponse.data.errors);
-      return res.status(500).json({ error: "Mutation failed" });
+    if (mutationResponse.data.errors) {
+      console.error("❌ Mutation error:", mutationResponse.data.errors);
+      return res.status(500).json({ error: "Failed to update column" });
     }
 
-    console.log(`✅ Assigned user ${userId} to item ${itemId}`);
+    console.log(`✅ Set user ${userId} as assignee on item ${itemId}`);
     res.status(200).json({ success: true });
 
-  } catch (err) {
-    console.error("❌ Server Error:", err.response?.data || err.message);
+  } catch (error) {
+    console.error("❌ Server Error:", error?.response?.data || error.message);
     res.status(500).json({ error: "Server error" });
   }
 });
 
-// Start server
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);

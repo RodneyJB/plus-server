@@ -1,6 +1,6 @@
-const express = require('express');
-const axios = require('axios');
-const dotenv = require('dotenv');
+const event = req.body?.event || {};
+const inputFields = req.body?.inputFields || {};
+
 
 dotenv.config();
 

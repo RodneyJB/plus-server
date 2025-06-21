@@ -1,35 +1,32 @@
 const axios = require('axios');
 
 const handleReplaceParticipant = async (req, res) => {
-  console.log("📥 Request received at /replace-participant/subscribe");
-  console.log("🟢 Payload:", JSON.stringify(req.body, null, 2));
+  console.log("📥 Incoming request to /replace-participant/subscribe");
+  const payload = req.body?.payload || {};
+  const event = payload?.event || {};
+  const inputFields = payload?.inputFields || {};
 
-  try {
-    const payload = req.body?.payload || {};
-    const event = payload?.event || {};
-    const inputFields = payload?.inputFields || {};
+  const { itemId, boardId, columnId } = event;
+  const { peopleId } = inputFields;
 
-    const { itemId, boardId, columnId } = event;
-    const { peopleId } = inputFields;
+  if (!itemId || !boardId || !columnId || !peopleId) {
+    console.warn("⚠️ Missing required input data:", { itemId, boardId, columnId, peopleId });
+    return res.status(200).send();
+  }
 
-    if (!itemId || !boardId || !columnId || !peopleId) {
-      console.warn("⚠️ Missing data:", { itemId, boardId, columnId, peopleId });
-      return res.status(200).send(); // Avoid retries
-    }
-
-    // Step 1: Get last editor from the column
-    const query = `
-      query {
-        items(ids: ${itemId}) {
-          column_values(ids: "${columnId}") {
-            updated_by {
-              id
-            }
+  const query = `
+    query {
+      items(ids: ${itemId}) {
+        column_values(ids: "${columnId}") {
+          updated_by {
+            id
           }
         }
       }
-    `;
+    }
+  `;
 
+  try {
     const response = await axios.post(
       'https://api.monday.com/v2',
       { query },
@@ -45,10 +42,9 @@ const handleReplaceParticipant = async (req, res) => {
 
     if (!userId) {
       console.warn("⚠️ No editor found for the column.");
-      return res.status(200).send(); // No retry
+      return res.status(200).send();
     }
 
-    // Step 2: Set the People column
     const mutation = `
       mutation {
         change_column_value(
@@ -74,16 +70,18 @@ const handleReplaceParticipant = async (req, res) => {
     );
 
     if (mutationResponse.data.errors) {
-      console.error("❌ Mutation error:", mutationResponse.data.errors);
-      return res.status(500).json({ error: "Mutation failed" });
+      console.error("❌ Mutation failed:", mutationResponse.data.errors);
+      return res.status(500).json({ error: "Mutation error" });
     }
 
-    console.log(`✅ Assigned user ${userId} to item ${itemId}`);
+    console.log(`✅ User ${userId} set on item ${itemId}`);
     res.status(200).json({ success: true });
+
   } catch (err) {
-    console.error("❌ Server error:", err.response?.data || err.message);
+    console.error("❌ Request error:", err.response?.data || err.message);
     res.status(500).json({ error: "Server error" });
   }
 };
 
+// 👇👇👇 This is what you were missing
 module.exports = { handleReplaceParticipant };

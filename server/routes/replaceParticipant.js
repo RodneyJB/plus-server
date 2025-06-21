@@ -1,21 +1,23 @@
 const express = require('express');
 const axios = require('axios');
-
 const router = express.Router();
 
-router.post('/replace-participant/subscribe', async (req, res) => {
+router.post("/replace-participant/subscribe", async (req, res) => {
+  console.log("📥 Incoming request body:", JSON.stringify(req.body, null, 2));
+
   try {
-    const event = req.body.event || {};
-    const inputFields = req.body.inputFields || {};
+    const event = req.body?.event || {};
+    const inputFields = req.body?.inputFields || {};
 
     const { itemId, boardId, columnId } = event;
     const { peopleId } = inputFields;
 
     if (!itemId || !boardId || !columnId || !peopleId) {
       console.warn("⚠️ Missing required input data:", { itemId, boardId, columnId, peopleId });
-      return res.status(200).send();
+      return res.status(200).send(); // prevent retry
     }
 
+    // Step 1: Build and send query to get last editor
     const query = `
       query {
         items(ids: ${itemId}) {
@@ -27,6 +29,7 @@ router.post('/replace-participant/subscribe', async (req, res) => {
         }
       }
     `;
+    console.log("🔍 GraphQL query:", query);
 
     const response = await axios.post(
       'https://api.monday.com/v2',
@@ -46,6 +49,7 @@ router.post('/replace-participant/subscribe', async (req, res) => {
       return res.status(200).send();
     }
 
+    // Step 2: Send mutation to update the People column
     const mutation = `
       mutation {
         change_column_value(
@@ -58,6 +62,7 @@ router.post('/replace-participant/subscribe', async (req, res) => {
         }
       }
     `;
+    console.log("🛠️ GraphQL mutation:", mutation);
 
     const mutationResponse = await axios.post(
       'https://api.monday.com/v2',
@@ -72,7 +77,7 @@ router.post('/replace-participant/subscribe', async (req, res) => {
 
     if (mutationResponse.data.errors) {
       console.error("❌ Mutation error:", mutationResponse.data.errors);
-      return res.status(500).json({ error: "Failed to update column" });
+      return res.status(500).json({ error: "Mutation failed" });
     }
 
     console.log(`✅ Assigned user ${userId} to item ${itemId}`);

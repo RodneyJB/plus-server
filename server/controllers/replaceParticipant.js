@@ -91,4 +91,11 @@ router.post('/subscribe', async (req, res) => {
   }
 });
 
+// server/controllers/replaceParticipant.js
+const handleReplaceParticipant = async (req, res) => {
+  console.log("🟢 Incoming request:", req.body);
+
+  // Your existing logic...
+};
+
 module.exports = router;

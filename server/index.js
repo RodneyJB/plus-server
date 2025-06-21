@@ -9,18 +9,18 @@ app.use(express.json());
 
 app.post("/replace-participant/subscribe", async (req, res) => {
   try {
-    const event = req.body?.event || {};
-    const inputFields = req.body?.inputFields || {};
+    const event = req.body.event || {};
+    const inputFields = req.body.inputFields || {};
 
     const { itemId, boardId, columnId } = event;
     const { peopleId } = inputFields;
 
     if (!itemId || !boardId || !columnId || !peopleId) {
       console.warn("⚠️ Missing required input data:", { itemId, boardId, columnId, peopleId });
-      return res.status(200).send(); // Avoid retries
+      return res.status(200).send(); // Avoid retries from Monday
     }
 
-    // Step 1: Get last editor from column
+    // 1. Get last editor of the edited column
     const query = `
       query {
         items(ids: ${itemId}) {
@@ -51,7 +51,7 @@ app.post("/replace-participant/subscribe", async (req, res) => {
       return res.status(200).send(); // No retry
     }
 
-    // Step 2: Assign last editor to People column
+    // 2. Assign that user to the People column
     const mutation = `
       mutation {
         change_column_value(
@@ -81,7 +81,7 @@ app.post("/replace-participant/subscribe", async (req, res) => {
       return res.status(500).json({ error: "Failed to update column" });
     }
 
-    console.log(`✅ Set user ${userId} as assignee on item ${itemId}`);
+    console.log(`✅ Assigned user ${userId} to item ${itemId}`);
     res.status(200).json({ success: true });
 
   } catch (error) {
@@ -90,6 +90,7 @@ app.post("/replace-participant/subscribe", async (req, res) => {
   }
 });
 
+// Start the server
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);

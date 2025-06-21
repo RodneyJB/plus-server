@@ -1,20 +1,25 @@
-const { mondayQuery } = require('../utils/mondayClient');
+const express = require('express');
+const axios = require('axios');
+const router = express.Router();
 
-const handleReplaceParticipant = async (req, res) => {
+router.post('/subscribe', async (req, res) => {
+  console.log("📥 Incoming request to /subscribe");
+  console.log("🧾 Request Body:", JSON.stringify(req.body, null, 2));
+
   try {
-    const payload = req.body?.payload || {};
-    const event = payload?.event || {};
-    const inputFields = payload?.inputFields || {};
+    const event = req.body?.event || {};
+    const inputFields = req.body?.inputFields || {};
 
     const { itemId, boardId, columnId } = event;
-    const peopleId = inputFields.peopleId;
+    const { peopleId } = inputFields;
+
+    console.log("📌 Parsed Values:", { itemId, boardId, columnId, peopleId });
 
     if (!itemId || !boardId || !columnId || !peopleId) {
-      console.warn("⚠️ Missing data:", { itemId, boardId, columnId, peopleId });
-      return res.status(200).send(); // prevent retries
+      console.warn("⚠️ Missing required input data:", { itemId, boardId, columnId, peopleId });
+      return res.status(200).send(); // avoid retries
     }
 
-    // Step 1: Get the last editor
     const query = `
       query {
         items(ids: ${itemId}) {
@@ -26,15 +31,27 @@ const handleReplaceParticipant = async (req, res) => {
         }
       }
     `;
-    const response = await mondayQuery(query);
-    const userId = response?.data?.items?.[0]?.column_values?.[0]?.updated_by?.id;
+
+    console.log("📤 Sending GraphQL query to Monday.com");
+    const response = await axios.post(
+      'https://api.monday.com/v2',
+      { query },
+      {
+        headers: {
+          Authorization: process.env.MONDAY_CLIENT_SECRET,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    const userId = response.data?.data?.items?.[0]?.column_values?.[0]?.updated_by?.id;
+    console.log("👤 Found updated_by userId:", userId);
 
     if (!userId) {
-      console.warn("⚠️ No user ID found");
-      return res.status(200).send();
+      console.warn("⚠️ Could not find editor for that column.");
+      return res.status(200).send(); // no retry
     }
 
-    // Step 2: Assign that user
     const mutation = `
       mutation {
         change_column_value(
@@ -47,19 +64,31 @@ const handleReplaceParticipant = async (req, res) => {
         }
       }
     `;
-    const result = await mondayQuery(mutation);
 
-    if (result.errors) {
-      console.error("❌ Mutation error:", result.errors);
-      return res.status(500).json({ error: "Mutation failed" });
+    console.log("📤 Sending mutation to Monday.com");
+    const mutationResponse = await axios.post(
+      'https://api.monday.com/v2',
+      { query: mutation },
+      {
+        headers: {
+          Authorization: process.env.MONDAY_CLIENT_SECRET,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    if (mutationResponse.data.errors) {
+      console.error("❌ Mutation error:", mutationResponse.data.errors);
+      return res.status(500).json({ error: "Failed to update column" });
     }
 
     console.log(`✅ Assigned user ${userId} to item ${itemId}`);
     res.status(200).json({ success: true });
-  } catch (err) {
-    console.error("❌ Server error:", err?.response?.data || err.message);
+
+  } catch (error) {
+    console.error("❌ Server Error:", error?.response?.data || error.message);
     res.status(500).json({ error: "Server error" });
   }
-};
+});
 
-module.exports = { handleReplaceParticipant };
+module.exports = router;

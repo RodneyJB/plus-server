@@ -6,8 +6,8 @@ router.post('/', async (req, res) => {
   try {
     const { payload } = req.body;
 
-    // Extract from payload
-    const boardId = payload?.boardId;
+    // Extract from inputFields
+    const boardId = payload?.inputFields?.boardId;
     const columnId = payload?.inputFields?.columnId;
 
     // Log for debugging
@@ -19,7 +19,7 @@ router.post('/', async (req, res) => {
       return res.status(400).send({ error: "Missing boardId or columnId" });
     }
 
-    // Create webhook
+    // Build webhook creation query
     const query = `
       mutation {
         create_webhook (
@@ -33,6 +33,7 @@ router.post('/', async (req, res) => {
       }
     `;
 
+    // Send to Monday API
     const result = await mondayQuery(query);
     console.log("Webhook created:", result);
 

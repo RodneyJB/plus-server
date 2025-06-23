@@ -5,7 +5,7 @@
 
 
 git add .
-git commit -m "2025-06-23"                                 "
+git commit -m "2025-06-23"
 git push
 
 

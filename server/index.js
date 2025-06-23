@@ -5,7 +5,12 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
-// You can add new routes here as you build them
+const receiptChangeAuthorRouter = require('./routes/receipt-change-author');
+const executeReceiptRouter = require('./routes/execute-receipt');
+
+// Mount the router (only once)
+app.use('/field-definitions/receipt-change-author', receiptChangeAuthorRouter);
+app.use('/monday/execute-receipt', executeReceiptRouter);
 
 app.get('/', (req, res) => {
   res.send('✅ Plus Server is running');
